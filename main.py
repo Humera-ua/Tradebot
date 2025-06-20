@@ -1,8 +1,9 @@
 import os
 import logging
-from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
+from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import openai
+import asyncio
 
 # --- Налаштування ---
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -21,78 +22,52 @@ async def is_authorized(update: Update):
 # --- Команди ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_authorized(update): return
-    keyboard = [[KeyboardButton("/btc"), KeyboardButton("/eth")],
-                [KeyboardButton("/recommend btc"), KeyboardButton("/recommend eth")]]
-    await update.message.reply_text("👋 Вітаю! Я бот для ф'ючерсної GPT-аналітики.", 
-                                    reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
+    await update.message.reply_text("👋 Вітаю! Я GPT-бот для ф'ючерсної торгівлі.")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_authorized(update): return
     await update.message.reply_text(
-        """📘 Список команд:
-/start — запуск
-/help — допомога
-/btc — ціна BTC
-/eth — ціна ETH
-/recommend btc — аналіз BTC
-/recommend eth — аналіз ETH"""
-    )
+        """Список команд:
+        /start - запуск
+        /help - допомога
+        /btc - ціна BTC
+        /recommend btc - аналіз монети
+        /eth
+        /recommend eth""")
 
 async def btc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_authorized(update): return
-    # Тестова відповідь без API біржі
-    price = 65230.55
-    reply = f"""📈 *BTC/USDT*
-Ціна: ${price} USD
-➡️ Для аналізу натисни /recommend btc"""
-    await update.message.reply_text(reply, parse_mode='Markdown')
+    await update.message.reply_text("📈 BTC/USDT\nЦіна: $XXX (тестова відповідь)")
 
 async def eth(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_authorized(update): return
-    price = 3444.55
-    reply = f"""📈 *ETH/USDT*
-Ціна: ${price} USD
-➡️ Для аналізу натисни /recommend eth"""
-    await update.message.reply_text(reply, parse_mode='Markdown')
+    await update.message.reply_text("📈 ETH/USDT\nЦіна: $XXX (тестова відповідь)")
 
 async def recommend(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_authorized(update): return
     if len(context.args) == 0:
-        await update.message.reply_text("❗️ Вкажи монету. Наприклад: /recommend btc")
+        await update.message.reply_text("Вкажи монету. Наприклад: /recommend btc")
         return
-    coin = context.args[0].upper()
-    prompt = f"Аналіз ринку {coin} для ф'ючерсної торгівлі. Визнач напрям і ключові рівні."
-
-    try:
-        completion = openai.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        response = completion.choices[0].message.content
-    except Exception as e:
-        response = f"⚠️ GPT помилка: {e}"
-
-    await update.message.reply_text(
-        f"""📉 GPT-аналітика для {coin}:
-        
-💬 {response}
-
-✅ Сигнал підтверджено — вхід можливий.
-🎯 Використовуйте TP та SL. Дотримуйтесь ризик-менеджменту.
-""", parse_mode='Markdown')
+    symbol = context.args[0].upper()
+    prompt = f"Проаналізуй ринок {symbol} для ф'ючерсної торгівлі."
+    response = openai.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    reply = response.choices[0].message.content
+    await update.message.reply_text(f"📉 GPT-аналітика:
+{reply}")
 
 # --- Запуск ---
 def main():
     logging.basicConfig(level=logging.INFO)
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("btc", btc))
     app.add_handler(CommandHandler("eth", eth))
     app.add_handler(CommandHandler("recommend", recommend))
-
-    app.run_polling()
+    asyncio.run(app.run_polling())
 
 if __name__ == "__main__":
     main()
