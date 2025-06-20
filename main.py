@@ -43,7 +43,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         /eth
         /recommend eth"""
     )
-
 async def btc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_authorized(update):
         return
