@@ -55,8 +55,10 @@ async def recommend(update: Update, context: ContextTypes.DEFAULT_TYPE):
         messages=[{"role": "user", "content": prompt}]
     )
     reply = response.choices[0].message.content
-    await update.message.reply_text(f"📉 GPT-аналітика:
-{reply}")
+    await update.message.reply_text(
+        f"""📉 GPT-аналітика:
+{reply}"""
+    )
 
 # --- Запуск ---
 def main():
