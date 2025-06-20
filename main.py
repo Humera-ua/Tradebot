@@ -34,11 +34,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_authorized(update):
         return
-    await update.message.reply_text("Список команд:
-/btc
-/recommend btc
-/eth
-/recommend eth")
+    await update.message.reply_text(
+        """Список команд:
+        /start - запуск
+        /help - допомога
+        /btc - ціна BTC
+        /recommend btc - аналіз монети
+        /eth
+        /recommend eth"""
+    )
 
 async def btc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_authorized(update):
