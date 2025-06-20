@@ -3,7 +3,6 @@ import logging
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import openai
-import asyncio
 
 # --- Налаштування ---
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -27,13 +26,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_authorized(update): return
     await update.message.reply_text(
-        """Список команд:
-        /start - запуск
-        /help - допомога
-        /btc - ціна BTC
-        /recommend btc - аналіз монети
-        /eth
-        /recommend eth""")
+        "📘 Список команд:\n"
+        "/start - запуск\n"
+        "/help - допомога\n"
+        "/btc - ціна BTC\n"
+        "/eth - ціна ETH\n"
+        "/recommend btc - аналіз монети"
+    )
 
 async def btc(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_authorized(update): return
@@ -50,26 +49,32 @@ async def recommend(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     symbol = context.args[0].upper()
     prompt = f"Проаналізуй ринок {symbol} для ф'ючерсної торгівлі."
-    response = openai.chat.completions.create(
-        model="gpt-4",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    reply = response.choices[0].message.content
+
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        reply = response.choices[0].message.content
+    except Exception as e:
+        reply = f"⚠ GPT помилка: {e}"
+
     await update.message.reply_text(
-        f"""📉 GPT-аналітика:
-{reply}"""
+        f"📉 GPT-аналітика для {symbol}:\n{reply}"
     )
 
 # --- Запуск ---
 def main():
     logging.basicConfig(level=logging.INFO)
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("btc", btc))
     app.add_handler(CommandHandler("eth", eth))
     app.add_handler(CommandHandler("recommend", recommend))
-    asyncio.run(app.run_polling())
+
+    app.run_polling()  # без asyncio.run
 
 if _name_ == "_main_":
     main()
