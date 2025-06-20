@@ -76,5 +76,5 @@ def main():
 
     app.run_polling()  # без asyncio.run
 
-if _name_ == "_main_":
+if __name__ == "_main_":
     main()
