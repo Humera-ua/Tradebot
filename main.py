@@ -50,8 +50,10 @@ async def btc(update: Update, context: ContextTypes.DEFAULT_TYPE):
         import requests
         response = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd")
         price = response.json()["bitcoin"]["usd"]
-        reply = f"📈 *BTC/USDT*
-💰 Поточна ціна: *{price:.2f} USDT*"
+        reply = (
+            f"📈 *BTC/USDT*\n"
+            f"💰 Поточна ціна: {price:.2f} USDT\n"
+            f"Щоб отримати аналітику - тисни кнопку"
         await update.message.reply_text(reply, parse_mode="Markdown")
     except Exception as e:
         await update.message.reply_text(f"⚠️ Помилка отримання ціни BTC: {e}")
