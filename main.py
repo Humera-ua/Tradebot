@@ -2,79 +2,77 @@ import os
 import logging
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-import openai
+import ccxt
+import pandas as pd
+import talib
+import asyncio
 
 # --- Налаштування ---
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OWNER_USERNAME = os.getenv("OWNER_USERNAME", "humera_ua")
-openai.api_key = OPENAI_API_KEY
+
+# Список дозволених користувачів
+AUTHORIZED_USERS = ["username1", "username2"]  # Імена користувачів Telegram
+AUTHORIZED_GROUPS = [-1001234567890]  # Ідентифікатори груп
+
+# Ініціалізація біржі
+exchange = ccxt.binance()
 
 # --- Авторизація ---
 async def is_authorized(update: Update):
+    user_id = update.effective_user.id
     username = update.effective_user.username
-    if username != OWNER_USERNAME:
+    chat_id = update.effective_chat.id
+
+    if username not in AUTHORIZED_USERS and chat_id not in AUTHORIZED_GROUPS:
         await update.message.reply_text("❌ Доступ обмежено.")
         return False
     return True
 
+# --- Функції для аналітики ---
+async def get_historical_data(symbol, timeframe='1d', limit=100):
+    ohlcv = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
+    df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+    return df
+
+async def calculate_indicators(symbol):
+    df = await get_historical_data(symbol)
+    rsi = talib.RSI(df['close'], timeperiod=14).iloc[-1]
+    macd, macdsignal, macdhist = talib.MACD(df['close'], fastperiod=12, slowperiod=26, signalperiod=9)
+    macd_value, macdsignal_value = macd.iloc[-1], macdsignal.iloc[-1]
+    upper, middle, lower = talib.BBANDS(df['close'], timeperiod=20)
+    bollinger_upper, bollinger_lower = upper.iloc[-1], lower.iloc[-1]
+    close_price = df['close'].iloc[-1]
+    return rsi, macd_value, macdsignal_value, bollinger_upper, bollinger_lower, close_price
+
+async def analyze_market(symbol):
+    rsi, macd_value, macdsignal_value, bollinger_upper, bollinger_lower, close_price = await calculate_indicators(symbol)
+    
+    # Логіка сигналів
+    buy_signal = (rsi < 30) and (macd_value > macdsignal_value) and (close_price < bollinger_lower)
+    sell_signal = (rsi > 70) and (macd_value < macdsignal_value) and (close_price > bollinger_upper)
+    
+    return buy_signal, sell_signal
+
 # --- Команди ---
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_authorized(update): return
-    await update.message.reply_text("👋 Вітаю! Я GPT-бот для ф'ючерсної торгівлі.")
-
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_authorized(update): return
-    await update.message.reply_text(
-        "📘 Список команд:\n"
-        "/start - запуск\n"
-        "/help - допомога\n"
-        "/btc - ціна BTC\n"
-        "/eth - ціна ETH\n"
-        "/recommend btc - аналіз монети"
-    )
-
-async def btc(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_authorized(update): return
-    await update.message.reply_text("📈 BTC/USDT\nЦіна: $XXX (тестова відповідь)")
-
-async def eth(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_authorized(update): return
-    await update.message.reply_text("📈 ETH/USDT\nЦіна: $XXX (тестова відповідь)")
-
-async def recommend(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def signal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_authorized(update): return
     if len(context.args) == 0:
-        await update.message.reply_text("Вкажи монету. Наприклад: /recommend btc")
+        await update.message.reply_text("Вкажи символ монети. Наприклад: /signal btcusdt")
         return
     symbol = context.args[0].upper()
-    prompt = f"Проаналізуй ринок {symbol} для ф'ючерсної торгівлі."
-
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        reply = response.choices[0].message.content
+        buy_signal, sell_signal = await analyze_market(symbol)
+        if buy_signal:
+            await update.message.reply_text(f"📈 Сигнал купівлі для {symbol}!")
+        elif sell_signal:
+            await update.message.reply_text(f"📉 Сигнал продажу для {symbol}!")
+        else:
+            await update.message.reply_text(f"🤔 Немає чітких сигналів для {symbol} на даний момент.")
     except Exception as e:
-        reply = f"⚠ GPT помилка: {e}"
-
-    await update.message.reply_text(
-        f"📉 GPT-аналітика для {symbol}:\n{reply}"
-    )
+        await update.message.reply_text(f"Помилка аналізу для {symbol}: {e}")
 
 # --- Запуск ---
 def main():
     logging.basicConfig(level=logging.INFO)
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("btc", btc))
-    app.add_handler(CommandHandler("eth", eth))
-    app.add_handler(CommandHandler("recommend", recommend))
-
-    app.run_polling()  # без asyncio.run
-
-if __name__ == "_main_":
-    main()
+    app
