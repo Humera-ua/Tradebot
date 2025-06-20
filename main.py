@@ -54,6 +54,7 @@ async def btc(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📈 *BTC/USDT*\n"
             f"💰 Поточна ціна: {price:.2f} USDT\n"
             f"Щоб отримати аналітику - тисни кнопку"
+        )
         await update.message.reply_text(reply, parse_mode="Markdown")
     except Exception as e:
         await update.message.reply_text(f"⚠️ Помилка отримання ціни BTC: {e}")
